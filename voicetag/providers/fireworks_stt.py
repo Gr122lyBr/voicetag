@@ -56,6 +56,7 @@ class FireworksTranscriber(BaseTranscriber):
 
             response = httpx.post(url, headers=headers, files=files, data=data, timeout=60.0)
             response.raise_for_status()
-            return response.json()["text"].strip()
+            result: str = response.json()["text"].strip()
+            return result
         except Exception as exc:
             raise TranscriptionError(f"Fireworks transcription failed: {exc}") from exc

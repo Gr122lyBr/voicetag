@@ -54,6 +54,7 @@ class DeepgramTranscriber(BaseTranscriber):
                 options.language = language
 
             response = client.listen.rest.v("1").transcribe_file(payload, options)
-            return response.results.channels[0].alternatives[0].transcript.strip()
+            result: str = response.results.channels[0].alternatives[0].transcript.strip()
+            return result
         except Exception as exc:
             raise TranscriptionError(f"Deepgram transcription failed: {exc}") from exc

@@ -55,7 +55,8 @@ class GroqTranscriber(BaseTranscriber):
                 if language:
                     kwargs["language"] = language
                 response = client.audio.transcriptions.create(**kwargs)
-            return response.text.strip()
+            result: str = response.text.strip()
+            return result
         except Exception as exc:
             raise TranscriptionError(f"Groq transcription failed: {exc}") from exc
         finally:

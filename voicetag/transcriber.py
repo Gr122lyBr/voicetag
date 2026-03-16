@@ -103,7 +103,8 @@ def get_transcriber(
         init_kwargs["model"] = model
     init_kwargs.update(kwargs)
 
-    return cls(**init_kwargs)
+    instance: BaseTranscriber = cls(**init_kwargs)
+    return instance
 
 
 def available_providers() -> list[str]:

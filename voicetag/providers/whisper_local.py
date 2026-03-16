@@ -54,7 +54,9 @@ class WhisperLocalTranscriber(BaseTranscriber):
             kwargs: dict = {"fp16": False}
             if language:
                 kwargs["language"] = language
-            result = self._model.transcribe(audio_float32, **kwargs)
-            return result["text"].strip()
+            assert self._model is not None
+            raw = self._model.transcribe(audio_float32, **kwargs)
+            text: str = raw["text"].strip()
+            return text
         except Exception as exc:
             raise TranscriptionError(f"Local Whisper transcription failed: {exc}") from exc
