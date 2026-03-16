@@ -61,6 +61,18 @@ dev = [
     "pre-commit>=3.0",
     "build>=1.0",
 ]
+openai = ["openai>=1.0"]
+groq = ["groq>=0.4"]
+fireworks = ["httpx>=0.27"]
+whisper = ["openai-whisper>=20230918"]
+deepgram = ["deepgram-sdk>=3.0"]
+all-stt = [
+    "openai>=1.0",
+    "groq>=0.4",
+    "httpx>=0.27",
+    "openai-whisper>=20230918",
+    "deepgram-sdk>=3.0",
+]
 docs = [
     "mkdocs>=1.5",
     "mkdocs-material>=9.0",

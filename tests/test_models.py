@@ -13,6 +13,8 @@ from voicetag.models import (
     OverlapSegment,
     SpeakerProfile,
     SpeakerSegment,
+    TranscriptResult,
+    TranscriptSegment,
     VoiceTagConfig,
 )
 
@@ -182,3 +184,77 @@ class TestDiarizationResult:
         result = DiarizationResult(segments=[], audio_duration=10.0, num_speakers=0)
         assert result.segments == []
         assert result.processing_time == 0.0
+
+
+# ---------------------------------------------------------------------------
+# TranscriptSegment
+# ---------------------------------------------------------------------------
+
+
+class TestTranscriptSegment:
+    def test_valid_creation(self):
+        seg = TranscriptSegment(
+            speaker="alice", start=1.0, end=3.0, text="Hello world", confidence=0.9
+        )
+        assert seg.speaker == "alice"
+        assert seg.start == 1.0
+        assert seg.end == 3.0
+        assert seg.text == "Hello world"
+        assert seg.confidence == 0.9
+
+    def test_end_must_be_after_start(self):
+        with pytest.raises(ValidationError, match="must be after start"):
+            TranscriptSegment(speaker="alice", start=5.0, end=3.0, text="hi")
+
+    def test_duration_property(self):
+        seg = TranscriptSegment(speaker="bob", start=1.5, end=4.5, text="test")
+        assert seg.duration == pytest.approx(3.0)
+
+    def test_frozen(self):
+        seg = TranscriptSegment(speaker="x", start=0.0, end=1.0, text="test")
+        with pytest.raises(ValidationError):
+            seg.speaker = "y"
+
+
+# ---------------------------------------------------------------------------
+# TranscriptResult
+# ---------------------------------------------------------------------------
+
+
+class TestTranscriptResult:
+    def test_mixed_segments(self):
+        segments = [
+            TranscriptSegment(speaker="alice", start=0.0, end=3.0, text="Hi", confidence=0.9),
+            TranscriptSegment(speaker="bob", start=3.0, end=6.0, text="Hey", confidence=0.8),
+        ]
+        result = TranscriptResult(
+            segments=segments, audio_duration=6.0, num_speakers=2, processing_time=1.0
+        )
+        assert len(result.segments) == 2
+        assert result.audio_duration == 6.0
+        assert result.num_speakers == 2
+
+    def test_full_transcript_property(self):
+        segments = [
+            TranscriptSegment(speaker="alice", start=0.0, end=2.0, text="Hello"),
+            TranscriptSegment(speaker="bob", start=2.0, end=4.0, text="World"),
+        ]
+        result = TranscriptResult(segments=segments, audio_duration=4.0, num_speakers=2)
+        assert result.full_transcript == "[alice] Hello\n[bob] World"
+
+    def test_by_speaker_property(self):
+        segments = [
+            TranscriptSegment(speaker="alice", start=0.0, end=2.0, text="Hi"),
+            TranscriptSegment(speaker="bob", start=2.0, end=4.0, text="Hey"),
+            TranscriptSegment(speaker="alice", start=4.0, end=6.0, text="Bye"),
+        ]
+        result = TranscriptResult(segments=segments, audio_duration=6.0, num_speakers=2)
+        by_spk = result.by_speaker
+        assert len(by_spk["alice"]) == 2
+        assert len(by_spk["bob"]) == 1
+
+    def test_empty_segments(self):
+        result = TranscriptResult(segments=[], audio_duration=10.0, num_speakers=0)
+        assert result.segments == []
+        assert result.full_transcript == ""
+        assert result.by_speaker == {}

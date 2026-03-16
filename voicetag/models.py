@@ -136,6 +136,55 @@ class SpeakerProfile(BaseModel):
     )
 
 
+class TranscriptSegment(BaseModel):
+    """A speaker segment with transcribed text."""
+
+    model_config = ConfigDict(frozen=True)
+
+    speaker: str
+    start: float
+    end: float
+    text: str
+    confidence: float = 0.0
+
+    @model_validator(mode="after")
+    def _validate_times(self) -> TranscriptSegment:
+        if self.end <= self.start:
+            raise ValueError(f"end ({self.end}) must be after start ({self.start})")
+        return self
+
+    @property
+    def duration(self) -> float:
+        return self.end - self.start
+
+
+class TranscriptResult(BaseModel):
+    """Full transcription result with speaker-attributed text."""
+
+    model_config = ConfigDict(frozen=True)
+
+    segments: list[TranscriptSegment]
+    audio_duration: float
+    num_speakers: int
+    processing_time: float = 0.0
+
+    @property
+    def full_transcript(self) -> str:
+        """Return the full transcript as formatted text."""
+        lines = []
+        for seg in self.segments:
+            lines.append(f"[{seg.speaker}] {seg.text}")
+        return "\n".join(lines)
+
+    @property
+    def by_speaker(self) -> dict[str, list[TranscriptSegment]]:
+        """Group segments by speaker."""
+        result: dict[str, list[TranscriptSegment]] = {}
+        for seg in self.segments:
+            result.setdefault(seg.speaker, []).append(seg)
+        return result
+
+
 class DiarizationResult(BaseModel):
     """Complete result of a speaker identification pipeline run.
 

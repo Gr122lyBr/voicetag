@@ -12,6 +12,7 @@ from voicetag.models import (
     DiarizationResult,
     OverlapSegment,
     SpeakerSegment,
+    TranscriptResult,
     VoiceTagConfig,
 )
 from voicetag.pipeline import Pipeline
@@ -134,6 +135,36 @@ class TestIdentify:
         # The 0.3s segment should be filtered by merge_segments
         durations = [s.end - s.start for s in result.segments]
         assert all(d >= config.min_segment_duration for d in durations)
+
+
+# ---------------------------------------------------------------------------
+# transcribe
+# ---------------------------------------------------------------------------
+
+
+class TestTranscribe:
+    @patch("voicetag.pipeline.get_transcriber")
+    @patch("voicetag.pipeline.load_audio")
+    @patch("voicetag.pipeline.validate_audio_path")
+    def test_returns_transcript_result(
+        self,
+        mock_validate,
+        mock_load,
+        mock_get_transcriber,
+        pipeline: Pipeline,
+        sample_audio_file: Path,
+    ):
+        mock_validate.return_value = sample_audio_file
+        mock_load.return_value = (np.zeros(80_000, dtype=np.float32), 16_000)
+
+        mock_transcriber = mock_get_transcriber.return_value
+        mock_transcriber.transcribe.return_value = "Hello world"
+
+        result = pipeline.transcribe(str(sample_audio_file), provider="openai", api_key="fake-key")
+        assert isinstance(result, TranscriptResult)
+        assert len(result.segments) > 0
+        assert result.segments[0].text == "Hello world"
+        mock_get_transcriber.assert_called_once_with("openai", api_key="fake-key", model=None)
 
 
 class TestPipelineCreation:

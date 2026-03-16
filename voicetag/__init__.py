@@ -8,6 +8,7 @@ from voicetag.exceptions import (  # noqa: E402
     AudioLoadError,
     DiarizationError,
     EnrollmentError,
+    TranscriptionError,
     VoiceTagConfigError,
     VoiceTagError,
 )
@@ -16,9 +17,12 @@ from voicetag.models import (  # noqa: E402
     OverlapSegment,
     SpeakerProfile,
     SpeakerSegment,
+    TranscriptResult,
+    TranscriptSegment,
     VoiceTagConfig,
 )
 from voicetag.pipeline import Pipeline as VoiceTag  # noqa: E402
+from voicetag.transcriber import available_providers  # noqa: E402
 
 logger.disable("voicetag")
 
@@ -31,10 +35,14 @@ __all__ = [
     "OverlapSegment",
     "SpeakerProfile",
     "DiarizationResult",
+    "TranscriptSegment",
+    "TranscriptResult",
     "VoiceTagError",
     "VoiceTagConfigError",
     "EnrollmentError",
     "DiarizationError",
     "AudioLoadError",
+    "TranscriptionError",
+    "available_providers",
     "__version__",
 ]

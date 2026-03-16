@@ -12,7 +12,13 @@ from typer.testing import CliRunner
 
 from voicetag.cli import app
 from voicetag.exceptions import EnrollmentError
-from voicetag.models import DiarizationResult, SpeakerProfile, SpeakerSegment
+from voicetag.models import (
+    DiarizationResult,
+    SpeakerProfile,
+    SpeakerSegment,
+    TranscriptResult,
+    TranscriptSegment,
+)
 
 runner = CliRunner()
 
@@ -215,6 +221,117 @@ class TestIdentifyCommand:
         )
         assert result.exit_code == 0
         assert "Summary" in result.output
+
+
+# ---------------------------------------------------------------------------
+# Error display
+# ---------------------------------------------------------------------------
+
+
+# ---------------------------------------------------------------------------
+# transcribe
+# ---------------------------------------------------------------------------
+
+
+class TestTranscribeCommand:
+    @patch("voicetag.pipeline.Pipeline.transcribe")
+    @patch("voicetag.pipeline.Diarizer")
+    @patch("voicetag.pipeline.SpeakerEncoder")
+    def test_transcribe_basic(
+        self,
+        MockEncoder,
+        MockDiarizer,
+        mock_transcribe,
+        sample_audio_file: Path,
+        tmp_path: Path,
+    ):
+        mock_result = TranscriptResult(
+            segments=[
+                TranscriptSegment(
+                    speaker="alice", start=0.0, end=3.0, text="Hello there", confidence=0.9
+                ),
+                TranscriptSegment(
+                    speaker="bob", start=3.5, end=6.0, text="Hi back", confidence=0.8
+                ),
+            ],
+            audio_duration=6.0,
+            num_speakers=2,
+            processing_time=2.0,
+        )
+        mock_transcribe.return_value = mock_result
+
+        result = runner.invoke(
+            app,
+            [
+                "transcribe",
+                str(sample_audio_file),
+                "--provider",
+                "openai",
+                "--profiles",
+                str(tmp_path / "profiles.json"),
+                "--device",
+                "cpu",
+            ],
+        )
+        assert result.exit_code == 0
+        assert "Summary" in result.output
+        mock_transcribe.assert_called_once()
+
+    @patch("voicetag.pipeline.Pipeline.transcribe")
+    @patch("voicetag.pipeline.Diarizer")
+    @patch("voicetag.pipeline.SpeakerEncoder")
+    def test_transcribe_saves_json(
+        self,
+        MockEncoder,
+        MockDiarizer,
+        mock_transcribe,
+        sample_audio_file: Path,
+        tmp_path: Path,
+    ):
+        mock_result = TranscriptResult(
+            segments=[
+                TranscriptSegment(
+                    speaker="alice", start=0.0, end=3.0, text="Hello", confidence=0.9
+                ),
+            ],
+            audio_duration=3.0,
+            num_speakers=1,
+            processing_time=1.0,
+        )
+        mock_transcribe.return_value = mock_result
+
+        output_path = tmp_path / "output.json"
+        result = runner.invoke(
+            app,
+            [
+                "transcribe",
+                str(sample_audio_file),
+                "--profiles",
+                str(tmp_path / "profiles.json"),
+                "--output",
+                str(output_path),
+                "--device",
+                "cpu",
+            ],
+        )
+        assert result.exit_code == 0
+        assert output_path.exists()
+        data = json.loads(output_path.read_text())
+        assert "segments" in data
+
+
+# ---------------------------------------------------------------------------
+# providers
+# ---------------------------------------------------------------------------
+
+
+class TestProvidersCommand:
+    def test_providers_lists_providers(self):
+        result = runner.invoke(app, ["providers"])
+        assert result.exit_code == 0
+        assert "openai" in result.output
+        assert "groq" in result.output
+        assert "whisper" in result.output
 
 
 # ---------------------------------------------------------------------------

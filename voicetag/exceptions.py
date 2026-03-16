@@ -97,3 +97,13 @@ class AudioLoadError(VoiceTagError):
         ),
     ) -> None:
         super().__init__(message)
+
+
+class TranscriptionError(VoiceTagError):
+    """Raised when speech-to-text transcription fails."""
+
+    def __init__(
+        self,
+        message: str = "Transcription failed.",
+    ) -> None:
+        super().__init__(message)

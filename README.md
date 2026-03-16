@@ -29,6 +29,7 @@ Enroll speakers once with a few audio samples, then identify them in any recordi
 - :keyboard: **CLI tool included** -- enroll, identify, and manage profiles from the terminal
 - :floppy_disk: **Save/load speaker profiles** -- persist enrolled speakers to disk and reuse across sessions
 - :white_check_mark: **Pydantic result models** -- fully typed, validated, immutable result objects
+- :speech_balloon: **Built-in transcription** -- plug in OpenAI, Groq, Fireworks, Whisper, or Deepgram to get "who said what"
 
 ## Quick Start
 
@@ -57,6 +58,16 @@ UNKNOWN: 13.0s - 15.4s
 
 ```bash
 pip install voicetag
+```
+
+For transcription support, install with a provider:
+
+```bash
+pip install voicetag[openai]    # OpenAI Whisper API
+pip install voicetag[groq]      # Groq (fast Whisper)
+pip install voicetag[whisper]   # Local Whisper (no API key needed)
+pip install voicetag[deepgram]  # Deepgram
+pip install voicetag[all-stt]   # All providers
 ```
 
 voicetag requires access to the [pyannote.audio](https://github.com/pyannote/pyannote-audio) speaker diarization model, which is gated behind a HuggingFace license agreement.
@@ -143,6 +154,31 @@ voicetag profiles list
 voicetag profiles remove "Alice"
 ```
 
+### Transcribe (speaker + text)
+
+```bash
+voicetag transcribe meeting.wav --provider openai --language en
+voicetag transcribe meeting.wav --provider groq --language he
+voicetag transcribe meeting.wav --provider whisper --model base
+```
+
+```
+Transcript -- meeting.wav
++---------+----------+----------+------------------------------------+
+| Speaker | Start    | End      | Text                               |
++---------+----------+----------+------------------------------------+
+| Alice   | 00:00.00 | 00:04.20 | Let's start the meeting            |
+| Bob     | 00:04.50 | 00:08.10 | Sure, I have the agenda ready      |
+| Alice   | 00:08.30 | 00:12.70 | Great, let's go through it         |
++---------+----------+----------+------------------------------------+
+```
+
+List available providers:
+
+```bash
+voicetag providers
+```
+
 ### All CLI options
 
 ```bash
@@ -179,6 +215,27 @@ vt = VoiceTag(config=VoiceTagConfig(...))
 | `load(path)` | `None` | Load speaker profiles from disk |
 | `remove_speaker(name)` | `None` | Remove an enrolled speaker by name |
 | `enrolled_speakers` | `list[str]` | Property: list of enrolled speaker names |
+| `transcribe(audio_path, provider, ...)` | `TranscriptResult` | Identify speakers and transcribe what they said |
+
+#### Transcription example
+
+```python
+result = vt.transcribe("meeting.wav", provider="openai", language="en")
+
+for seg in result.segments:
+    print(f"[{seg.speaker}] {seg.text}")
+
+# Full transcript
+print(result.full_transcript)
+
+# Group by speaker
+for speaker, segments in result.by_speaker.items():
+    print(f"\n{speaker}:")
+    for seg in segments:
+        print(f"  {seg.text}")
+```
+
+Supported providers: `openai`, `groq`, `fireworks`, `whisper` (local), `deepgram`
 
 ### `VoiceTagConfig`
 

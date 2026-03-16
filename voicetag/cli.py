@@ -361,6 +361,140 @@ def profiles_remove(
 
 
 @app.command()
+def transcribe(
+    audio_file: Path = typer.Argument(..., help="Audio file to transcribe.", exists=True),
+    provider: str = typer.Option(
+        "openai",
+        "--provider",
+        "-p",
+        help="STT provider (openai, groq, fireworks, whisper, deepgram).",
+    ),
+    language: Optional[str] = typer.Option(
+        None, "--language", "-l", help="Language code hint (e.g. en, he)."
+    ),
+    model: Optional[str] = typer.Option(
+        None, "--model", help="Model name override for the STT provider."
+    ),
+    api_key: Optional[str] = typer.Option(None, "--api-key", help="API key for the STT provider."),
+    profiles: Path = typer.Option(
+        DEFAULT_PROFILES_PATH,
+        "--profiles",
+        help="Path to enrolled speaker profiles.",
+    ),
+    output: Optional[Path] = typer.Option(
+        None, "--output", "-o", help="Save JSON output to this path."
+    ),
+    hf_token: Optional[str] = typer.Option(
+        None, "--hf-token", envvar="HF_TOKEN", help="HuggingFace API token."
+    ),
+    device: str = typer.Option("cpu", "--device", help="Torch device (cpu, cuda, mps)."),
+    threshold: Optional[float] = typer.Option(
+        None, "--threshold", help="Similarity threshold override (0.0-1.0)."
+    ),
+) -> None:
+    """Transcribe an audio file with speaker identification."""
+    from voicetag.models import VoiceTagConfig
+    from voicetag.pipeline import Pipeline
+
+    config_kwargs: dict = {"device": device}
+    if hf_token:
+        config_kwargs["hf_token"] = hf_token
+    if threshold is not None:
+        config_kwargs["similarity_threshold"] = threshold
+
+    try:
+        config = VoiceTagConfig(**config_kwargs)
+        pipe = Pipeline(config=config)
+
+        if profiles.exists():
+            pipe.load(profiles)
+            console.print(f"[dim]Loaded profiles from {profiles}[/dim]")
+
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            console=console,
+        ) as progress:
+            progress.add_task("Transcribing…", total=None)
+            result = pipe.transcribe(
+                audio_file,
+                provider=provider,
+                api_key=api_key,
+                model=model,
+                language=language,
+            )
+
+        color_map: dict[str, str] = {}
+
+        table = Table(
+            title=f"Transcript — [bold]{audio_file.name}[/bold]",
+            show_lines=False,
+        )
+        table.add_column("Speaker", style="bold", min_width=12)
+        table.add_column("Start", justify="right")
+        table.add_column("End", justify="right")
+        table.add_column("Text")
+
+        for seg in result.segments:
+            color = _speaker_color(seg.speaker, color_map)
+            table.add_row(
+                f"[{color}]{seg.speaker}[/{color}]",
+                format_time(seg.start),
+                format_time(seg.end),
+                seg.text,
+            )
+
+        console.print()
+        console.print(table)
+        console.print()
+
+        n_segments = len(result.segments)
+        n_speakers = result.num_speakers
+
+        summary_lines = [
+            f"[bold]Total duration:[/bold]  {format_time(result.audio_duration)}",
+            f"[bold]Speakers:[/bold]        {n_speakers}",
+            f"[bold]Segments:[/bold]        {n_segments}",
+            f"[bold]Provider:[/bold]        {provider}",
+            f"[bold]Processing time:[/bold] {result.processing_time:.2f}s",
+        ]
+        console.print(
+            Panel(
+                "\n".join(summary_lines),
+                title="[bold]Summary[/bold]",
+                border_style="blue",
+            )
+        )
+
+        if output is not None:
+            output_data = result.model_dump(mode="json")
+            output.parent.mkdir(parents=True, exist_ok=True)
+            with open(output, "w") as f:
+                json.dump(output_data, f, indent=2, default=str)
+            console.print(f"[dim]Results saved to {output}[/dim]")
+
+    except VoiceTagError as exc:
+        err_console.print(Panel(str(exc), title="[red]Error[/red]", border_style="red"))
+        raise typer.Exit(code=1)
+
+
+@app.command()
+def providers() -> None:
+    """List available STT providers."""
+    from voicetag.transcriber import available_providers
+
+    provider_list = available_providers()
+    table = Table(title="Available STT Providers")
+    table.add_column("Provider", style="cyan bold")
+
+    for name in provider_list:
+        table.add_row(name)
+
+    console.print(table)
+    console.print(f"\n[dim]{len(provider_list)} provider(s) available.[/dim]")
+
+
+@app.command()
 def version() -> None:
     """Show the voicetag version."""
     console.print(f"voicetag [bold cyan]{__version__}[/bold cyan]")

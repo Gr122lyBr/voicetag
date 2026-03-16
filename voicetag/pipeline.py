@@ -22,9 +22,12 @@ from voicetag.models import (
     OverlapSegment,
     SpeakerProfile,
     SpeakerSegment,
+    TranscriptResult,
+    TranscriptSegment,
     VoiceTagConfig,
 )
 from voicetag.overlap import detect_overlaps, merge_segments
+from voicetag.transcriber import get_transcriber
 from voicetag.utils import load_audio, validate_audio_path
 
 
@@ -252,6 +255,76 @@ class Pipeline:
             audio_duration=audio_duration,
             num_speakers=len(real_speakers),
             processing_time=processing_time,
+        )
+
+    def transcribe(
+        self,
+        audio_path: str | Path,
+        provider: str = "openai",
+        api_key: Optional[str] = None,
+        model: Optional[str] = None,
+        language: Optional[str] = None,
+        **provider_kwargs,
+    ) -> TranscriptResult:
+        """Run speaker identification and transcribe each segment.
+
+        Args:
+            audio_path: Path to the audio file.
+            provider: STT provider name ("openai", "groq", "fireworks", "whisper", "deepgram").
+            api_key: API key for the STT provider.
+            model: Model name override for the STT provider.
+            language: ISO language code hint (e.g., "en", "he", "zh").
+            **provider_kwargs: Additional provider-specific arguments.
+
+        Returns:
+            ``TranscriptResult`` with speaker-attributed transcript segments.
+        """
+        import time as _time
+
+        t_start = _time.monotonic()
+
+        # Get speaker identification first
+        diarization = self.identify(audio_path)
+
+        if not diarization.segments:
+            return TranscriptResult(
+                segments=[],
+                audio_duration=diarization.audio_duration,
+                num_speakers=diarization.num_speakers,
+                processing_time=_time.monotonic() - t_start,
+            )
+
+        # Load audio for segment extraction
+        audio, sr = load_audio(audio_path)
+
+        # Create transcriber
+        transcriber = get_transcriber(provider, api_key=api_key, model=model, **provider_kwargs)
+
+        def _transcribe_segment(seg):
+            seg_audio = self._extract_segment(audio, sr, seg.start, seg.end)
+            if len(seg_audio) < int(sr * 0.1):
+                return None
+            text = transcriber.transcribe(seg_audio, sr=sr, language=language)
+            speaker = seg.speaker if isinstance(seg, SpeakerSegment) else "OVERLAP"
+            conf = seg.confidence if isinstance(seg, SpeakerSegment) else 0.0
+            return TranscriptSegment(
+                speaker=speaker,
+                start=seg.start,
+                end=seg.end,
+                text=text,
+                confidence=conf,
+            )
+
+        with ThreadPoolExecutor(max_workers=self._config.max_workers) as pool:
+            results = list(pool.map(_transcribe_segment, diarization.segments))
+
+        transcript_segments = [r for r in results if r is not None]
+
+        return TranscriptResult(
+            segments=transcript_segments,
+            audio_duration=diarization.audio_duration,
+            num_speakers=diarization.num_speakers,
+            processing_time=_time.monotonic() - t_start,
         )
 
     @staticmethod
