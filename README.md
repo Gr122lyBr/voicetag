@@ -1,4 +1,4 @@
-<p align="center"><img src="docs/assets/logo.png" width="200" alt="voicetag"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/Gr122lyBr/voicetag/main/docs/assets/logo.png" width="200" alt="voicetag"></p>
 
 <h1 align="center">voicetag</h1>
 
